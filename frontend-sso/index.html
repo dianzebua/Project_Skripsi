@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Portal Toko Headless & Omnichannel</title>
+    <script src="https://cdn.jsdelivr.net/npm/keycloak-js@24.0.1/dist/keycloak.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; text-align: center; background-color: #f8f9fa; color: #333; }
+        .card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 1050px; margin: auto; }
+        
+        button { padding: 10px 20px; font-size: 15px; margin: 5px; cursor: pointer; border: none; border-radius: 6px; color: white; font-weight: bold; transition: 0.2s; }
+        button:hover { filter: brightness(90%); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        #login-btn { background-color: #007bff; }
+        #logout-btn { background-color: #6c757d; }
+        #get-products-btn { background-color: #17a2b8; display: none; }
+        
+        /* Tombol Dinamis Sakelar Langganan Pelanggan */
+        #promo-toggle-btn { display: none; }
+        .btn-subscribe { background-color: #28a745; }
+        .btn-unsubscribe { background-color: #dc3545; }
+
+        .status-box { background-color: #e9ecef; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: left; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+        .role-badge { padding: 5px 12px; border-radius: 20px; font-size: 13px; font-weight: bold; color: white; display: none; }
+        .badge-admin { background-color: #6f42c1; }
+        .badge-customer { background-color: #17a2b8; }
+
+        .log-box { margin-top: 20px; padding: 15px; background: #282c34; color: #61dafb; text-align: left; border-radius: 6px; display: none; font-size: 14px; }
+        h3 { color: #ffeb3b; margin-top: 0; border-bottom: 1px solid #555; padding-bottom: 10px; }
+        
+        /* Grid Katalog Pelanggan */
+        .product-grid { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin-top: 20px; }
+        .product-card { background: white; border-radius: 8px; padding: 15px; width: 200px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.15); border: 1px solid #eee; }
+        .product-card img { width: 100%; height: 150px; object-fit: cover; border-radius: 5px; background-color: #f0f0f0; }
+        .product-card h4 { color: #333; font-size: 16px; margin: 10px 0; }
+        .product-card .price { color: #e91e63; font-weight: bold; font-size: 18px; margin-bottom: 15px; }
+        .product-card .btn-detail { background: #007bff; color: white; text-decoration: none; padding: 8px 15px; border-radius: 4px; display: inline-block; font-size: 14px; }
+
+        /* Styling Khusus Dasbor Admin */
+        #admin-dashboard { display: none; text-align: left; margin-top: 25px; border-top: 2px solid #dee2e6; padding-top: 20px; }
+        .admin-panel { background: #fdfdfe; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.04); }
+        .admin-panel h3 { color: #2d3748; border-bottom: 2px solid #edf2f7; padding-bottom: 10px; margin-bottom: 15px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-weight: bold; margin-bottom: 6px; font-size: 14px; color: #4a5568; }
+        .form-control { width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+        
+        /* Pratinjau Mini Produk di Admin */
+        .preview-card { display: none; align-items: center; gap: 15px; background: #f1f5f9; padding: 12px; border-radius: 8px; margin-top: 10px; border-left: 4px solid #6f42c1; }
+        .preview-card img { width: 65px; height: 65px; object-fit: cover; border-radius: 6px; background: white; border: 1px solid #ddd; }
+        .preview-info h4 { margin: 0 0 4px 0; font-size: 15px; color: #1e293b; }
+        .preview-info p { margin: 0; font-size: 13px; color: #475569; }
+
+        /* Tabel Riwayat Broadcast: Scrollable Container + Sticky Header */
+        .table-scroll-container { max-height: 340px; overflow-y: auto; overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 6px; margin-top: 12px; }
+        table.history-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+        table.history-table th, table.history-table td { border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; padding: 10px 12px; text-align: left; vertical-align: middle; }
+        table.history-table th:last-child, table.history-table td:last-child { border-right: none; }
+        table.history-table thead th { position: sticky; top: 0; background-color: #f1f5f9; color: #334155; font-weight: bold; z-index: 2; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+        table.history-table tr:nth-child(even) { background-color: #fcfcfd; }
+        table.history-table tr:hover { background-color: #f8fafc; }
+
+        /* Lencana Status Riwayat Broadcast */
+        .status-pill { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; line-height: 1.3; }
+        .status-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status-partial { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+        .status-failed { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+        /* Bar Paginasi Tabel */
+        .pagination-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; font-size: 13.5px; color: #475569; flex-wrap: wrap; gap: 10px; }
+        .pagination-controls button { background-color: #64748b; padding: 6px 12px; font-size: 13px; margin: 0 2px; }
+        .rows-select { padding: 5px 8px; border: 1px solid #cbd5e0; border-radius: 5px; font-size: 13px; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2 id="portal-title">🛍️ Portal Toko Headless</h2>
+        
+        <!-- Kotak Informasi Status Sesi & Role -->
+        <div class="status-box">
+            <div>
+                <p style="margin: 0;"><strong>Status Sesi:</strong> <span id="status" style="color: gray;">Mengecek sesi...</span></p>
+                <p id="telegram-link-container" style="margin: 8px 0 0 0; display: none; font-size: 14px;">
+                    <strong>Saluran Promo:</strong> 
+                    <a href="https://t.me/ecc_fashion_bot?start=terhubung" target="_blank" style="color: #0088cc; text-decoration: none; font-weight: bold;">
+                        ↗️ Buka Aplikasi Telegram Bot
+                    </a>
+                </p>
+            </div>
+            <span id="role-badge" class="role-badge"></span>
+        </div>
+
+        <div id="promo-banner" style="background-color: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; border: 1px solid #ffeeba;">
+            🎁 Diskon Spesial Menanti! <br>
+            <span style="font-size: 14px; font-weight: normal;">Login via SSO untuk mendapatkan penawaran eksklusif di Telegram.</span>
+        </div>
+
+        <!-- Tombol Navigasi Utama -->
+        <div>
+            <button id="login-btn" style="display:none;" onclick="keycloak.login()">🔐 Login via Keycloak SSO</button>
+            <button id="logout-btn" style="display:none;" onclick="keycloak.logout()">Keluar</button>
+            <button id="get-products-btn" onclick="fetchProducts()">📦 Lihat Semua Katalog</button>
+            <button id="promo-toggle-btn" onclick="handlePromoToggle()"></button>
+        </div>
+
+        <!-- Kotak Log Sinkronisasi & Katalog Pelanggan -->
+        <div id="sync-log" class="log-box" style="font-family: monospace; white-space: pre-wrap;"></div>
+        <div id="product-log" class="log-box" style="background: #f8f9fa;"></div>
+
+        <!-- ========================================== -->
+        <!-- DASBOR KHUSUS ADMINISTRATOR (RBAC ADMIN)   -->
+        <!-- ========================================== -->
+        <div id="admin-dashboard">
+            <div class="admin-panel">
+                <h3>📢 Kirim Kampanye Broadcast Omnichannel (Telegram)</h3>
+                
+                <div class="form-group">
+                    <label for="sku-search-input">1. Cari Produk (Ketik Nama Barang atau Kode SKU):</label>
+                    <input type="text" id="sku-search-input" class="form-control" placeholder="🔍 Contoh: Duffle Bag atau 24-MB01..." oninput="filterProductDropdown()">
+                </div>
+
+                <div class="form-group">
+                    <label for="sku-select">2. Pilih Produk dari Hasil Pencarian (<span id="product-count-label">0</span> produk ditemukan):</label>
+                    <select id="sku-select" class="form-control" onchange="updateProductPreview()">
+                        <option value="">-- Memuat daftar katalog dari Magento... --</option>
+                    </select>
+
+                    <!-- Pratinjau Mini Produk Terpilih -->
+                    <div id="product-preview" class="preview-card">
+                        <img id="preview-img" src="" alt="Preview">
+                        <div class="preview-info">
+                            <h4 id="preview-name">-</h4>
+                            <p><strong>SKU:</strong> <span id="preview-sku">-</span> | <strong>Harga Normal:</strong> $<span id="preview-price">0</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="discount-input">3. Label Diskon / Penawaran:</label>
+                    <input type="text" id="discount-input" class="form-control" placeholder="Contoh: 25% OFF atau Potongan Rp 50.000">
+                </div>
+
+                <div class="form-group">
+                    <label for="message-input">4. Pesan Promosi ke Pelanggan:</label>
+                    <textarea id="message-input" class="form-control" rows="3" placeholder="Tulis pesan ajakan menarik untuk pelanggan..."></textarea>
+                </div>
+
+                <button id="send-broadcast-btn" style="background-color: #6f42c1; width: 100%; padding: 12px;" onclick="sendAdminBroadcast()">
+                    🚀 Eksekusi Broadcast ke Pelanggan Aktif
+                </button>
+                <p id="broadcast-feedback" style="margin-top: 12px; font-weight: bold; display: none;"></p>
+            </div>
+
+            <div class="admin-panel">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <h3 style="margin: 0; border: none;">📜 Riwayat Pengiriman Broadcast</h3>
+                    <div>
+                        <label for="rows-per-page" style="font-size: 13px; color: #475569; margin-right: 4px;">Tampilkan:</label>
+                        <select id="rows-per-page" class="rows-select" onchange="changeRowsPerPage()">
+                            <option value="5" selected>5 baris / hal</option>
+                            <option value="10">10 baris / hal</option>
+                            <option value="9999">Semua (Scroll)</option>
+                        </select>
+                        <button style="background-color: #17a2b8; padding: 6px 14px; font-size: 13px;" onclick="loadBroadcastHistory()">🔄 Muat Ulang</button>
+                    </div>
+                </div>
+
+                <!-- Kontainer Tabel Scrollable dengan Sticky Header -->
+                <div class="table-scroll-container">
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>Waktu</th>
+                                <th>Admin</th>
+                                <th>SKU</th>
+                                <th>Nama Produk</th>
+                                <th>Diskon</th>
+                                <th>Pesan</th>
+                                <th>Terkirim</th>
+                                <th>Status / Keterangan (Log)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table-body">
+                            <tr><td colspan="8" style="text-align: center;">Memuat data riwayat...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Navigasi Paginasi Tabel -->
+                <div class="pagination-bar">
+                    <span id="pagination-info">Menampilkan 0 dari 0 riwayat</span>
+                    <div class="pagination-controls">
+                        <button id="prev-page-btn" onclick="changeHistoryPage(-1)" disabled>◀ Sebelumnya</button>
+                        <span id="page-indicator" style="margin: 0 8px; font-weight: bold;">Hal 1 / 1</span>
+                        <button id="next-page-btn" onclick="changeHistoryPage(1)" disabled>Berikutnya ▶</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var keycloak = new Keycloak({
+            url: 'http://localhost:8080',
+            realm: 'ecommerce-sso',
+            clientId: 'frontend-web' 
+        });
+
+        const GATEWAY_URL = "http://127.0.0.1:8000";
+        let currentSubscriptionStatus = 0;
+        let allAdminProducts = [];
+        
+        // State untuk Paginasi Tabel Riwayat Broadcast
+        let allBroadcastHistory = [];
+        let currentHistoryPage = 1;
+        let rowsPerPage = 5;
+
+        keycloak.init({ onLoad: 'check-sso' }).then(function(authenticated) {
+            if (authenticated) {
+                const displayName = keycloak.tokenParsed.given_name || keycloak.tokenParsed.preferred_username || "Pengguna";
+                document.getElementById('status').innerHTML = `<span style="color: #28a745; font-weight: bold;">Terhubung (${displayName})</span>`;
+                document.getElementById('login-btn').style.display = 'none';
+                document.getElementById('logout-btn').style.display = 'inline-block';
+                document.getElementById('promo-banner').style.display = 'none';
+                
+                authenticateWithGateway();
+            } else {
+                document.getElementById('status').innerText = 'Silakan login terlebih dahulu.';
+                document.getElementById('login-btn').style.display = 'inline-block';
+                document.getElementById('logout-btn').style.display = 'none';
+                document.getElementById('promo-banner').style.display = 'block';
+            }
+        }).catch(function() {
+            document.getElementById('status').innerText = 'Gagal inisialisasi Keycloak.';
+        });
+
+        // ====================================================
+        // 1. INISIALISASI OTENTIKASI & DETEKSI ROLE (RBAC)
+        // ====================================================
+        async function authenticateWithGateway() {
+            const syncLog = document.getElementById('sync-log');
+            const roleBadge = document.getElementById('role-badge');
+            syncLog.style.display = 'block';
+            syncLog.innerHTML = "<h3>🔄 Memverifikasi Identitas & Hak Akses (RBAC)...</h3>Menghubungi API Gateway...\n";
+
+            try {
+                await keycloak.updateToken(30);
+                const response = await fetch(`${GATEWAY_URL}/api/v1/auth`, {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${keycloak.token}` }
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || "Terjadi kesalahan pada server Gateway");
+
+                roleBadge.style.display = 'inline-block';
+
+                if (data.role === "admin") {
+                    document.getElementById('portal-title').innerText = "🛡️ Dasbor Administrator Omnichannel";
+                    roleBadge.className = "role-badge badge-admin";
+                    roleBadge.innerText = "ROLE: ADMIN";
+                    syncLog.innerHTML += `<span style="color: #98c379;">OTORISASI BERHASIL!</span> Mode: <strong>${data.status}</strong> (${data.email})`;
+                    
+                    document.getElementById('admin-dashboard').style.display = 'block';
+                    loadProductsForAdminSearch();
+                    loadBroadcastHistory();
+                } else {
+                    document.getElementById('portal-title').innerText = "🛍️ Portal Toko Headless";
+                    roleBadge.className = "role-badge badge-customer";
+                    roleBadge.innerText = "ROLE: PELANGGAN";
+                    syncLog.innerHTML += `<span style="color: #98c379;">BERHASIL!</span> Status SSO & Database: <strong>${data.status}</strong>`;
+                    
+                    document.getElementById('telegram-link-container').style.display = 'block';
+                    document.getElementById('get-products-btn').style.display = 'inline-block';
+
+                    currentSubscriptionStatus = data.is_subscribed;
+                    renderToggleButton();
+                    
+                    const urlParams = new URLSearchParams(window.location.search);
+                    if (urlParams.has('sku')) {
+                        fetchProducts(urlParams.get('sku')); 
+                    }
+                }
+            } catch (error) {
+                syncLog.innerHTML += `<span style="color: #e06c75;">GAGAL: ${error.message}</span>`;
+            }
+        }
+
+        // ====================================================
+        // 2. FUNGSI LANGGANAN PELANGGAN (POST & DELETE)
+        // ====================================================
+        function renderToggleButton() {
+            const btn = document.getElementById('promo-toggle-btn');
+            btn.style.display = 'inline-block';
+            if (currentSubscriptionStatus === 1) {
+                btn.className = "btn-unsubscribe";
+                btn.innerHTML = "🔕 Berhenti Berlangganan Promo";
+            } else {
+                btn.className = "btn-subscribe";
+                btn.innerHTML = "🔔 Aktifkan Kembali Promo";
+            }
+        }
+
+        async function handlePromoToggle() {
+            const btn = document.getElementById('promo-toggle-btn');
+            btn.innerHTML = "⏳ Memproses...";
+            btn.disabled = true;
+            
+            const httpMethod = (currentSubscriptionStatus === 1) ? "DELETE" : "POST";
+
+            try {
+                await keycloak.updateToken(30);
+                const response = await fetch(`${GATEWAY_URL}/api/v1/marketing/subscribe`, {
+                    method: httpMethod,
+                    headers: { "Authorization": `Bearer ${keycloak.token}` }
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || "Gagal mengubah status langganan");
+
+                currentSubscriptionStatus = (currentSubscriptionStatus === 1) ? 0 : 1;
+                renderToggleButton();
+            } catch (error) {
+                alert("Error: " + error.message);
+                renderToggleButton();
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // ====================================================
+        // 3. FUNGSI KATALOG PELANGGAN
+        // ====================================================
+        async function fetchProducts(targetSku = null) {
+            const productLog = document.getElementById('product-log');
+            productLog.style.display = 'block';
+            
+            if (!targetSku) {
+                window.history.pushState({}, document.title, window.location.pathname);
+                productLog.innerHTML = "<h3 style='color: #333;'>📦 Katalog Produk</h3>";
+            } else {
+                productLog.innerHTML = "<h3 style='color: #333;'>📦 Menampilkan Detail Promo</h3>";
+            }
+
+            try {
+                await keycloak.updateToken(30);
+                const response = await fetch(`${GATEWAY_URL}/api/v1/products`, {
+                    method: "GET",
+                    headers: { "Authorization": `Bearer ${keycloak.token}` }
+                });
+                const responseJson = await response.json();
+                if (!response.ok) throw new Error(responseJson.detail || "Gagal mengambil katalog");
+
+                let products = responseJson.data;
+                if (targetSku) {
+                    products = products.filter(p => p.sku === targetSku);
+                }
+
+                let htmlContent = '<div class="product-grid">';
+                if (products.length === 0) {
+                    htmlContent += `<p style="color: red; width: 100%;">Produk dengan SKU <strong>${targetSku}</strong> tidak ditemukan.</p>`;
+                }
+
+                products.forEach(p => {
+                    const imgSrc = p.image_url ? p.image_url : 'https://via.placeholder.com/200x150?text=No+Image';
+                    htmlContent += `
+                        <div class="product-card">
+                            <img src="${imgSrc}" alt="${p.name}" onerror="this.src='https://via.placeholder.com/200x150?text=Image+Error'">
+                            <h4>${p.name}</h4>
+                            <p class="price">$${p.price}</p>
+                            <a href="${p.product_link}" target="_blank" class="btn-detail">Beli di Toko</a>
+                        </div>
+                    `;
+                });
+                htmlContent += '</div>';
+                productLog.innerHTML += htmlContent;
+            } catch (error) {
+                productLog.innerHTML += `<span style="color: red;">Error memuat produk: ${error.message}</span>`;
+            }
+        }
+
+        // ====================================================
+        // 4. FUNGSI DASBOR ADMIN: PENCARIAN SKU & BROADCAST
+        // ====================================================
+        async function loadProductsForAdminSearch() {
+            const selectEl = document.getElementById('sku-select');
+            try {
+                await keycloak.updateToken(30);
+                const response = await fetch(`${GATEWAY_URL}/api/v1/products`, {
+                    method: "GET",
+                    headers: { "Authorization": `Bearer ${keycloak.token}` }
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.detail || "Gagal memuat produk");
+
+                allAdminProducts = result.data || [];
+                filterProductDropdown();
+            } catch (error) {
+                selectEl.innerHTML = `<option value="">Gagal memuat katalog: ${error.message}</option>`;
+            }
+        }
+
+        function filterProductDropdown() {
+            const query = document.getElementById('sku-search-input').value.toLowerCase().trim();
+            const selectEl = document.getElementById('sku-select');
+            const countLabel = document.getElementById('product-count-label');
+
+            const filtered = allAdminProducts.filter(p => 
+                (p.name && p.name.toLowerCase().includes(query)) || 
+                (p.sku && p.sku.toLowerCase().includes(query))
+            );
+
+            countLabel.innerText = filtered.length;
+            selectEl.innerHTML = "";
+
+            if (filtered.length === 0) {
+                selectEl.innerHTML = `<option value="">-- Tidak ada produk yang cocok dengan "${query}" --</option>`;
+                document.getElementById('product-preview').style.display = 'none';
+                return;
+            }
+
+            filtered.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.sku;
+                opt.textContent = `[${p.sku}] - ${p.name} ($${p.price})`;
+                selectEl.appendChild(opt);
+            });
+
+            updateProductPreview();
+        }
+
+        function updateProductPreview() {
+            const selectedSku = document.getElementById('sku-select').value;
+            const previewBox = document.getElementById('product-preview');
+            const product = allAdminProducts.find(p => p.sku === selectedSku);
+
+            if (!product) {
+                previewBox.style.display = 'none';
+                return;
+            }
+
+            previewBox.style.display = 'flex';
+            document.getElementById('preview-img').src = product.image_url || 'https://via.placeholder.com/65?text=No+Img';
+            document.getElementById('preview-name').innerText = product.name;
+            document.getElementById('preview-sku').innerText = product.sku;
+            document.getElementById('preview-price').innerText = product.price;
+        }
+
+        async function sendAdminBroadcast() {
+            const sku = document.getElementById('sku-select').value;
+            const discount = document.getElementById('discount-input').value.trim();
+            const message = document.getElementById('message-input').value.trim();
+            const feedback = document.getElementById('broadcast-feedback');
+            const btn = document.getElementById('send-broadcast-btn');
+
+            if (!sku || !discount || !message) {
+                alert("Harap pilih produk serta lengkapi kolom Diskon dan Pesan Promosi!");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerText = "⏳ Mengirim Broadcast ke Telegram...";
+            feedback.style.display = 'none';
+
+            try {
+                await keycloak.updateToken(30);
+                const response = await fetch(`${GATEWAY_URL}/api/v1/marketing/broadcast`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${keycloak.token}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ sku, discount, message })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || "Gagal mengirim broadcast");
+
+                feedback.style.display = 'block';
+                if (data.status === "SUCCESS") {
+                    feedback.style.color = '#28a745';
+                    feedback.innerText = `✅ ${data.message}`;
+                } else {
+                    feedback.style.color = '#dc3545';
+                    feedback.innerText = `⚠️ ${data.message}`;
+                }
+
+                document.getElementById('discount-input').value = "";
+                document.getElementById('message-input').value = "";
+                loadBroadcastHistory();
+            } catch (error) {
+                feedback.style.display = 'block';
+                feedback.style.color = '#dc3545';
+                feedback.innerText = `❌ Gagal: ${error.message}`;
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "🚀 Eksekusi Broadcast ke Pelanggan Aktif";
+            }
+        }
+
+        // ====================================================
+        // 5. FUNGSI TABEL RIWAYAT (PAGINASI & SCROLLABLE)
+        // ====================================================
+        async function loadBroadcastHistory() {
+            const tbody = document.getElementById('history-table-body');
+            try {
+                await keycloak.updateToken(30);
+                const response = await fetch(`${GATEWAY_URL}/api/v1/marketing/broadcast`, {
+                    method: "GET",
+                    headers: { "Authorization": `Bearer ${keycloak.token}` }
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.detail || "Gagal mengambil riwayat");
+
+                allBroadcastHistory = result.data || [];
+                currentHistoryPage = 1;
+                renderHistoryTablePage();
+            } catch (error) {
+                tbody.innerHTML = `<tr><td colspan="8" style="color: red; text-align: center;">Error: ${error.message}</td></tr>`;
+            }
+        }
+
+        function formatStatusBadge(statusNote) {
+            const note = statusNote || "BERHASIL: Terkirim ke pelanggan aktif.";
+            if (note.startsWith("GAGAL")) {
+                return `<span class="status-pill status-failed">❌ ${note}</span>`;
+            } else if (note.startsWith("PARSIAL")) {
+                return `<span class="status-pill status-partial">⚠️ ${note}</span>`;
+            }
+            return `<span class="status-pill status-success">✅ ${note}</span>`;
+        }
+
+        function renderHistoryTablePage() {
+            const tbody = document.getElementById('history-table-body');
+            const infoSpan = document.getElementById('pagination-info');
+            const pageInd = document.getElementById('page-indicator');
+            const prevBtn = document.getElementById('prev-page-btn');
+            const nextBtn = document.getElementById('next-page-btn');
+
+            const totalItems = allBroadcastHistory.length;
+            if (totalItems === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: gray;">Belum ada riwayat pengiriman broadcast.</td></tr>`;
+                infoSpan.innerText = "Menampilkan 0 dari 0 riwayat";
+                pageInd.innerText = "Hal 1 / 1";
+                prevBtn.disabled = true;
+                nextBtn.disabled = true;
+                return;
+            }
+
+            const totalPages = Math.ceil(totalItems / rowsPerPage) || 1;
+            if (currentHistoryPage > totalPages) currentHistoryPage = totalPages;
+            if (currentHistoryPage < 1) currentHistoryPage = 1;
+
+            const startIdx = (currentHistoryPage - 1) * rowsPerPage;
+            const endIdx = Math.min(startIdx + rowsPerPage, totalItems);
+            const pageItems = allBroadcastHistory.slice(startIdx, endIdx);
+
+            tbody.innerHTML = "";
+            pageItems.forEach(item => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td style="white-space: nowrap;">${item.timestamp}</td>
+                        <td>${item.admin_email}</td>
+                        <td><strong>${item.sku}</strong></td>
+                        <td>${item.product_name}</td>
+                        <td><span style="color: #e91e63; font-weight: bold;">${item.discount}</span></td>
+                        <td>${item.message}</td>
+                        <td style="text-align: center; white-space: nowrap;"><strong>${item.recipient_count}</strong> user</td>
+                        <td>${formatStatusBadge(item.status_note)}</td>
+                    </tr>
+                `;
+            });
+
+            infoSpan.innerText = `Menampilkan ${startIdx + 1} - ${endIdx} dari total ${totalItems} riwayat`;
+            pageInd.innerText = `Hal ${currentHistoryPage} / ${totalPages}`;
+            prevBtn.disabled = (currentHistoryPage <= 1);
+            nextBtn.disabled = (currentHistoryPage >= totalPages);
+        }
+
+        function changeHistoryPage(delta) {
+            currentHistoryPage += delta;
+            renderHistoryTablePage();
+        }
+
+        function changeRowsPerPage() {
+            rowsPerPage = parseInt(document.getElementById('rows-per-page').value, 10);
+            currentHistoryPage = 1;
+            renderHistoryTablePage();
+        }
+    </script>
+</body>
+</html>
